@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Legal Contract with PDFMake</title>
+    <script src="pdfmake.js">// https://raw.githubusercontent.com/bpampuch/pdfmake/master/build/pdfmake.js </script>
+    <script src="vfs_fonts.js">// https://raw.githubusercontent.com/bpampuch/pdfmake/master/build/vfs_fonts.js </script>
+    <script>
+      let filename = "Sample Contract.pdf";
+
+      //CONTRACT TEMPLATE
+      //The first row is the header
+      //['0','...'] makes an un-numbered paragraph
+      //['1','...'] makes a subheader,       e.g. "3   Reference" 
+      //['2','...'] makes a numbered clause, e.g. "3.1 Proin libero sem, maximus vitae ligula."
+      //Every keyword you want replaced must be inside curly brackets, e.g. {city}
+      //It's replaced with the matching property of the replacekey object, e.g. 'New York' from replacekey.city
+      //['2xzy','...'] adds an optional reference key {xyz}. 
+      //Reference it from anywhere, e.g. {xyz} may get replaced with 3.2
+      let template = [
+        ['',  'Sample Contract'],              
+        ['0', '{city}, {mm}/{dd}/{yyyy}'],              
+        ['0', 'This agreement is between {landlord} (\"{landlord_initials}\", landlord) and {tenant} (\"{tenant_initials}\", tenant).'],              
+        ['1', 'Subject of the agreement'],              
+        ['2pr', '{tenant_initials} agrees to rent from {landlord_initials} the apartment on {address} for ${price} per month.'],              
+        ['2', 'Sed auctor libero id sollicitudin gravida. Morbi dui nisl, gravida id dapibus non, faucibus ac velit. Proin libero sem, maximus vitae ligula '],
+        ['2', 'Proin libero sem, maximus vitae ligula '],
+        ['0', 'Sed auctor libero id sollicitudin gravida.'],
+        ['1', 'Deeper level'],
+        ['2', 'For a 3rd level of numbering I suggest'],
+        ['0', 'a) begin clause with a letter'],
+        ['0', 'b) and set key to 0'],
+        ['2', 'It looks ok?'],
+        ['1', 'Reference '],
+        ['2', 'The price is in clause {pr}.'],
+        ['2xyz', 'The reference is dynamic. I sat the level key at 2abc for clause {pr} and referenced it with {abc}.'],
+        ['2', 'Sed auctor libero id sollicitudin gravida. Morbi dui nisl, gravida id dapibus non, faucibus ac velit. Proin libero sem, maximus vitae ligula '],
+        ['2', 'Sed auctor libero id sollicitudin gravida. Morbi dui nisl, gravida id dapibus non, faucibus ac velit. Proin libero sem, maximus vitae ligula. Sed auctor libero id sollicitudin gravida. Morbi dui nisl, gravida id dapibus non, faucibus ac velit. Proin libero sem, maximus vitae ligula '],
+        ['1', 'Gravida id dapibus'],
+        ['2', 'Sed auctor libero id sollicitudin gravida. Morbi dui nisl, gravida id dapibus non, faucibus ac velit. Proin libero sem, maximus vitae ligula '],
+        ['0', 'Sed auctor libero id sollicitudin gravida. Morbi dui nisl, gravida id dapibus non, faucibus ac velit. Proin libero sem, maximus vitae ligula '],
+        ['2', 'Sed auctor libero id sollicitudin gravida. Morbi dui nisl, gravida id dapibus non, faucibus ac velit. Proin libero sem, maximus vitae ligula '],
+        ['2', 'Sed auctor libero id sollicitudin gravida. Morbi dui nisl, gravida id dapibus non, faucibus ac velit. Proin libero sem, maximus vitae ligula. Morbi dui nisl, gravida id dapibus non, faucibus ac velit. Proin libero sem, maximus vitae ligula. Morbi dui nisl, gravida id dapibus non, faucibus ac velit. Proin libero sem, maximus vitae ligula '],
+      ];
+      let signature = '\n\n\n\n{landlord}                                       {tenant}';
+
+      //The template contains keywords inside curly brackets.
+      //E.g. replace {city} with 'New York'
+      let replacekey = {
+        city: 'New York', 
+        landlord: 'Gordon Gekko', 
+      }
+
+      function makePdf() {
+        //get user input
+        replacekey.tenant = document.getElementById("tenantName").value;
+        replacekey.price = document.getElementById("rentPrice").value;
+        replacekey.attachment_1 = document.getElementById("att1").value;
+        replacekey.attachment_2 = document.getElementById("att2").value;
+
+        //add logical properties
+        replacekey.landlord_initials = replacekey.landlord.replace(/[^A-Z]/g, '');
+        replacekey.tenant_initials = replacekey.tenant.replace(/[^A-Z]/g, '');
+        let today = new Date();
+        replacekey.dd = String(today.getDate()).padStart(2, '0');
+        replacekey.mm = String(today.getMonth() + 1).padStart(2, '0'); //January is 0!
+        replacekey.yyyy = today.getFullYear();
+
+        //can also copy properties from another object
+        let apartment = {
+          address: 'Long St 258-41', 
+          floor: 2, 
+          sqm: 37.5,
+        }
+        replacekey = Object.assign(replacekey, apartment);
+
+        //The doc definition (dd) is the blueprint of the pdf
+        //Content is left empty for now
+        let dd = {
+          pageSize: 'A4',
+          pageMargins: [50, 50, 50, 50],
+          footer: function(currentPage) { return {text: currentPage.toString(), style: 'footer'}; },
+          content: [],
+          styles: {
+            header: {
+              fontSize: 18,
+              bold: true,
+              alignment: 'center'
+            },
+            footer: {
+              alignment: 'center'  
+            },
+            horizontallines: {
+              fontSize: 25,
+            },
+          },
+          defaultStyle: {
+            fontSize: 11,
+            alignment: 'justify'
+          }
+        }
+
+        //Generate numerical list, find reference keys and copy over in new array
+        let count = [0,0,0];
+        let level = [];
+        let body = [];
+        let row = 0;
+        body[row] = [{text: template[0][1], colSpan: 2, style: 'header'}, ''];
+        row += 1;
+        body[row] = [' ', ''];
+        for (let i=1; i < template.length; i++) {
+          let info = template[i][0];
+          let infoprev = template[i-1][0];
+          let code = '';
+          if (info.length>1) code = info.substr(1);
+          let lvl = parseInt(info.substr(0,1));
+          let lvlprev = parseInt(infoprev.substr(0,1));
+          if(lvl == 1)                 count[1] += 1;
+          if(lvl == 2 && lvlprev == 1) count[2] = 1;
+          if(lvl == 2 && lvlprev != 1) count[2] += 1;
+          row += 1;
+          if(lvl == 0) {
+            level[row] = 0;
+            body[row] = ['', template[i][1]];
+          }
+          if(lvl == 1) {
+            level[row] = 0;
+            body[row] = [' ', ''];
+            row += 1;
+            level[row] = 1;
+            body[row] = [''+count[1], template[i][1]];
+          }
+          if(lvl == 2) {
+            level[row] = 2;
+            body[row] = [count[1]+'.'+count[2], template[i][1]];
+          }
+          if (code != '') {
+            replacekey[code] = body[row][0];  
+          }
+        }
+
+        //Replace all keys within {} in entire contract
+        for (let i=0; i < body.length; i++) {
+          body[i][1] = replaceAllKeys(body[i][1]);
+        }
+
+        //Format subheaders
+        for (let i=1; i < body.length; i++) {
+          if(level[i] == 1) {
+            body[i] = [{text: ''+body[i][0], bold: true}, {text: body[i][1], bold: true}];
+          }
+        }
+
+        //Add contract to the doc definition
+        let ind = 0;
+        dd.content[ind] = {
+          table: {
+            dontBreakRows: false,
+            widths: ['auto', '*'],
+            body: body 
+          },
+          layout: 'noBorders',
+        }
+
+        //Attachments
+        let att_count = base64img.length-1;
+        let i = 0;
+        while (i < att_count) {
+          i += 1;
+          ind += 1;
+          let w = 400;
+          let h = w*base64img[i].h/base64img[i].w;
+          let maxh = 650;
+          dd.content[ind] = {
+            pageBreak: 'before',
+            text: 'Attachment: {attachment_'+i+'}\n ', 
+            style: 'header',
+          }
+          dd.content[ind].text = replaceAllKeys(dd.content[ind].text);
+          ind += 1;
+          dd.content[ind] = {
+            image: base64img[i].src,
+            width: w,
+            height: Math.min(maxh, h),
+            alignment: 'center',
+          }
+        }
+
+        //Last page
+        ind +=1;
+        dd.content[ind] = {
+          pageBreak: 'before',
+          text: 'Notes', 
+          style: 'header',
+        }
+        ind +=1;
+        dd.content[ind] = {
+          style: 'horizontallines',
+          table: {
+            widths: '100%',
+            body: [
+              [{border: [false, false, false, true],text: ' '}],
+              [{border: [false, false, false, true],text: ' '}],
+              [{border: [false, false, false, true],text: ' '}],
+              [{border: [false, false, false, true],text: ' '}],
+              [{border: [false, false, false, true],text: ' '}],
+              [{border: [false, false, false, true],text: ' '}],
+              [{border: [false, false, false, true],text: ' '}],
+            ]
+          },
+          layout: {
+            hLineWidth: function() {return 0.5;}, 
+            hLineColor: function() {return 'gray';}, 
+          }
+        }
+        ind += 1;
+        dd.content[ind] = {
+          text: signature, 
+        }
+        dd.content[ind].text = replaceAllKeys(dd.content[ind].text);
+
+        pdfMake.createPdf(dd).download(filename);
+      }
+
+      function replaceAllKeys(str) {
+        for (let [key, value] of Object.entries(replacekey)) {
+          str = String(str).replaceAll('{'+key+'}',value);
+        }
+        return str;
+      }
+
+
+      /*Image attachments
+      * I copied and tweaked the code from https://ourcodeworld.com/articles/read/491/how-to-retrieve-images-from-the-clipboard-with-javascript-in-the-browser
+      */
+      let base64img = [''];
+      function retrieveImageFromClipboardAsBase64(pasteEvent, callback, imageFormat){
+        if(pasteEvent.clipboardData == false){
+          if(typeof(callback) == "function"){
+            callback(undefined);
+          }
+        };
+
+        var items = pasteEvent.clipboardData.items;
+
+        if(items == undefined){
+          if(typeof(callback) == "function"){
+            callback(undefined);
+          }
+        };
+
+        for (var i = 0; i < items.length; i++) {
+          // Skip content if not image
+          if (items[i].type.indexOf("image") == -1) continue;
+          // Retrieve image on clipboard as blob
+          var blob = items[i].getAsFile();
+
+          // Create an abstract canvas and get context
+          var mycanvas = document.createElement("canvas");
+          var ctx = mycanvas.getContext('2d');
+
+          // Create an image
+          var img = new Image();
+
+          // Once the image loads, render the img on the canvas
+          img.onload = function(){
+            // Update dimensions of the canvas with the dimensions of the image
+            mycanvas.width = this.width;
+            mycanvas.height = this.height;
+
+            // Draw the image
+            ctx.drawImage(img, 0, 0);
+
+            // Execute callback with the base64 URI of the image
+            if(typeof(callback) == "function"){
+              callback(mycanvas.toDataURL(
+                (imageFormat || "image/png")
+              ));
+            }
+          };
+
+          // Crossbrowser support for URL
+          var URLObj = window.URL || window.webkitURL;
+
+          // Creates a DOMString containing a URL representing the object given in the parameter
+          // namely the original Blob
+          img.src = URLObj.createObjectURL(blob);
+        }
+      }
+
+      window.addEventListener("paste", function(e){
+
+        // Handle the event
+        retrieveImageFromClipboardAsBase64(e, function(imageDataBase64){
+          // If there's an image, open it in the browser as a new window :)
+          if(imageDataBase64){
+            // data:image/png;base64,iVBORw0KGgoAAAAN......
+            //window.open(imageDataBase64);
+            let ind = base64img.length;
+            if (ind <= 2) { //allow this many attachment images
+              base64img.push([]);
+              base64img[ind].src = imageDataBase64;
+              let canvas = document.getElementById('canvas'+ind);
+              let ctx = canvas.getContext("2d");
+              var image = new Image();
+              image.onload = function() {
+                base64img[ind].w = image.width; 
+                base64img[ind].h = image.height; 
+                ctx.drawImage(image, 0, 0, image.width, image.height, 
+                              0, 0, 150, 100);
+              };
+              image.src = base64img[ind].src;
+            }
+          }
+        });
+      }, false);
+    </script>
+    <style>
+      html {
+        display: table;
+        margin: auto;
+      }
+      input, button {
+        width: 150px; 
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Legal Contract with PDFMake</h1>
+    Create a dummy rental contract.
+    <br>Test with a few inputs.
+
+    <br><br><b>Tenant Name</b>
+    <br><input type="text" id="tenantName" value="">    
+
+    <br><br><b>Rent Price</b>
+    <br><input type="text" id="rentPrice" value="">   
+
+    <br><br><b>(Optional)
+    <br>Image attachment #1</b>
+    <br><i>Paste an image from the clipboard (CTRL+V).</i>
+    <br><input type="text" id="att1" value="" placeholder="Title">
+    <br><canvas id="canvas1" width="150" height="100" style="border:1px solid #cccccc;"></canvas>
+
+    <br><br><b>Image attachment #2</b>
+    <br><i>Paste again for a 2nd attachment.</i>
+    <br><input type="text" id="att2" value="" placeholder="Title">
+    <br><canvas id="canvas2" width="150" height="100" style="border:1px solid #cccccc;"></canvas>
+
+    <br><br><button onclick="makePdf()">Make PDF</button>
+
+  </body>
+</html>
