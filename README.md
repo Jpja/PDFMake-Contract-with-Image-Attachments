@@ -5,7 +5,7 @@ JS template for PDF legal contract with optional image attachments
 
 `pdfmake-contract.html` uses the pdfmake library to generate a legal contract. It runs in the browser, JS client-side, and outputs a pdf file.
 
-The contract is derived from a template where keywords are replaced by user inputs and algorithms. 
+The contract is derived from a template where keywords are replaced with user inputs and algorithms. 
  
 Two level dynamic numbering, e.g. `1. This is a subheader` and `1.1 And this is a clause`.
 
@@ -19,6 +19,7 @@ The `template` array is near the top of the script. Every header and paragraph m
 - `'0'` is an un-numbered paragraph
 - `'1'` is a subheader
 - `'2'` is a clause
+
 The very first element is the document title and does not require a level key.
 
 All keywords you want replaced must be inside {curly brackets}. The `replacekey` object replaces any key it has defined. 
